@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'ui.dart';
@@ -62,14 +61,14 @@ class _ConverterPageState extends State<ConverterPage> {
 }
 
 IconData _icon(String p) => switch (p) {
-      'facebook' => FontAwesomeIcons.facebook,
-      'tiktok' => FontAwesomeIcons.tiktok,
-      'telegram' => FontAwesomeIcons.telegram,
-      'whatsapp' => FontAwesomeIcons.whatsapp,
-      'instagram' => FontAwesomeIcons.instagram,
-      'youtube' => FontAwesomeIcons.youtube,
-      'x' => FontAwesomeIcons.xTwitter,
-      'snapchat' => FontAwesomeIcons.snapchat,
+      'facebook' => Icons.facebook,
+      'tiktok' => Icons.music_note,
+      'telegram' => Icons.telegram,
+      'whatsapp' => Icons.chat,
+      'instagram' => Icons.camera_alt,
+      'youtube' => Icons.play_circle_fill,
+      'x' => Icons.alternate_email,
+      'snapchat' => Icons.photo_camera,
       _ => Icons.public,
     };
 
