@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'bookings.dart';
+import 'services.dart';
 import 'ui.dart';
 
 /// صفحة القسم: مكاتب (السفر) أو نموذج مباشر
@@ -37,7 +39,7 @@ class AgencyList extends StatelessWidget {
                     Text(' ${((a['rating_avg'] ?? 0) as num).toStringAsFixed(1)} (${a['rating_count'] ?? 0})'),
                   ]),
                   trailing: Text(a['is_open'] == true ? 'مفتوح' : 'مغلق', style: TextStyle(color: a['is_open'] == true ? Colors.green : Colors.red, fontWeight: FontWeight.bold)),
-                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => TripsPage(a))),
+                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => AgencyPage(a, slug))),
                 ),
               ),
           ]);
@@ -250,11 +252,21 @@ class _DirectSectionState extends State<DirectSection> {
   final s = TextEditingController(), d = TextEditingController(), p = TextEditingController();
   bool busy = false;
   @override
-  Widget build(BuildContext context) => ListView(padding: const EdgeInsets.all(16), children: [
-        if ('${widget.office['description'] ?? ''}'.isNotEmpty) Padding(padding: const EdgeInsets.only(bottom: 12), child: Text('${widget.office['description']}')),
-        if (widget.office['ship_base'] != null) Card(child: ListTile(title: const Text('أجرة الإرسالية'), subtitle: Text('${money(widget.office['ship_base'] as num)} + ${money((widget.office['ship_per_kg'] ?? 0) as num)} لكل كجم'))),
-        const Text('أرسل طلبك وستتواصل معك الإدارة', style: TextStyle(fontWeight: FontWeight.bold)),
-        const SizedBox(height: 10),
+  Widget build(BuildContext context) {
+    final o = widget.office, slug = '${o['slug']}';
+    final acts = actionsFor(context, slug, Target.ofOffice(o));
+    return ListView(padding: const EdgeInsets.all(16), children: [
+      if ('${o['description'] ?? ''}'.isNotEmpty) Padding(padding: const EdgeInsets.only(bottom: 12), child: Text('${o['description']}')),
+      if (slug == 'parcels' && o['ship_base'] != null) Card(child: ListTile(title: const Text('أجرة الإرسالية'), subtitle: Text('${money(o['ship_base'] as num)} + ${money((o['ship_per_kg'] ?? 0) as num)} لكل كجم'))),
+      if (slug == 'transfers' && (o['transfer_pct'] != null || o['transfer_min'] != null)) Card(child: ListTile(title: const Text('رسوم التحويل'), subtitle: Text('${o['transfer_pct'] ?? 0}%${o['transfer_min'] != null ? ' بحد أدنى ${money(o['transfer_min'] as num)}' : ''}'))),
+      Load<dynamic>(sb.from('services').select().eq('office_slug', slug).eq('active', true).order('sort'), (r) {
+        final l = (r as List).cast<Map<String, dynamic>>();
+        return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [if (l.isNotEmpty) head('الخدمات والأسعار'), for (final x in l) Card(child: ListTile(title: Text('${x['name']}'), trailing: Text('${x['price_text'] ?? ''}', style: const TextStyle(color: kPri, fontWeight: FontWeight.bold))))]);
+      }),
+      if (acts.isNotEmpty)
+        for (final a in acts) Padding(padding: const EdgeInsets.only(top: 10), child: FilledButton.icon(onPressed: a[2] as VoidCallback, icon: Icon(a[1] as IconData), label: Text(a[0] as String)))
+      else ...[
+        head('أرسل طلبك وستتواصل معك الإدارة'),
         TextField(controller: s, decoration: const InputDecoration(labelText: 'الخدمة المطلوبة')),
         const SizedBox(height: 10),
         TextField(controller: d, maxLines: 3, decoration: const InputDecoration(labelText: 'التفاصيل')),
@@ -266,7 +278,7 @@ class _DirectSectionState extends State<DirectSection> {
             if (s.text.trim().isEmpty || p.text.trim().isEmpty) return toast(context, 'أكمل الخدمة والهاتف');
             setState(() => busy = true);
             try {
-              await sb.from('service_requests').insert({'office_slug': widget.office['slug'], 'service_name': s.text.trim(), 'details': d.text.trim(), 'phone': p.text.trim()});
+              await sb.from('service_requests').insert({'office_slug': o['slug'], 'service_name': s.text.trim(), 'details': d.text.trim(), 'phone': p.text.trim()});
               if (mounted) { toast(context, 'تم إرسال طلبك'); Navigator.pop(context); }
             } catch (e) {
               if (mounted) toast(context, errMsg(e));
@@ -276,5 +288,48 @@ class _DirectSectionState extends State<DirectSection> {
           },
           child: const Text('إرسال الطلب'),
         ),
-      ]);
+      ],
+      if ('${o['phone'] ?? ''}'.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 14), child: OutlinedButton.icon(onPressed: () => launchUrl(Uri.parse('tel:${o['phone']}')), icon: const Icon(Icons.call), label: Text('${o['phone']}'))),
+    ]);
+  }
+}
+
+List<List<dynamic>> actionsFor(BuildContext c, String slug, Target t, {Map<String, dynamic>? agency}) => switch (slug) {
+      'travel' => [['حجز رحلة', Icons.directions_bus, () => agency == null ? null : Navigator.push(c, MaterialPageRoute(builder: (_) => TripsPage(agency)))]],
+      'parcels' => [
+          ['تسجيل إرسالية جديدة', Icons.inventory_2, () => Navigator.push(c, MaterialPageRoute(builder: (_) => ShipNew(t)))],
+          ['تتبع إرسالية', Icons.local_shipping, () => Navigator.push(c, MaterialPageRoute(builder: (_) => const ShipTrack()))],
+        ],
+      'transfers' => [['تحويل جديد', Icons.account_balance_wallet, () => Navigator.push(c, MaterialPageRoute(builder: (_) => TransferNew(t)))]],
+      'security' => [['تقديم طلب موافقة', Icons.shield, () => Navigator.push(c, MaterialPageRoute(builder: (_) => SecurityNew(t)))]],
+      'realestate' => [['تصفح العقارات', Icons.apartment, () => Navigator.push(c, MaterialPageRoute(builder: (_) => PropsPage(t.agencyId)))]],
+      _ => <List<dynamic>>[],
+    };
+
+class AgencyPage extends StatelessWidget {
+  final Map<String, dynamic> agency;
+  final String slug;
+  const AgencyPage(this.agency, this.slug, {super.key});
+  @override
+  Widget build(BuildContext context) {
+    final open = agency['is_open'] == true;
+    final acts = actionsFor(context, slug, Target.ofAgency(agency), agency: agency);
+    return Scaffold(
+      appBar: AppBar(title: Text('${agency['name']}')),
+      body: ListView(padding: const EdgeInsets.all(16), children: [
+        agencyHeader(agency),
+        if ('${agency['description'] ?? ''}'.isNotEmpty) Padding(padding: const EdgeInsets.only(bottom: 10), child: Text('${agency['description']}')),
+        if (!open) const Padding(padding: EdgeInsets.only(bottom: 10), child: Text('المكتب مغلق حالياً ولا يستقبل طلبات.', style: TextStyle(color: Colors.red))),
+        Load<dynamic>(sb.from('offers').select().eq('agency_id', agency['id']).eq('active', true), (d) {
+          final l = (d as List).cast<Map<String, dynamic>>();
+          return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            if (l.isNotEmpty) head('العروض'),
+            for (final o in l) Card(child: ListTile(title: Text('${o['title']}'), subtitle: Text('${o['description'] ?? ''}'), trailing: Text('${o['price_text'] ?? o['badge'] ?? ''}', style: const TextStyle(color: kPri, fontWeight: FontWeight.bold)))),
+          ]);
+        }),
+        for (final a in acts) Padding(padding: const EdgeInsets.only(top: 10), child: FilledButton.icon(onPressed: open ? a[2] as VoidCallback : null, icon: Icon(a[1] as IconData), label: Text(a[0] as String))),
+        if ('${agency['phone'] ?? ''}'.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 14), child: OutlinedButton.icon(onPressed: () => launchUrl(Uri.parse('tel:${agency['phone']}')), icon: const Icon(Icons.call), label: Text('${agency['phone']}'))),
+      ]),
+    );
+  }
 }

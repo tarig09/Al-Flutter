@@ -1,4 +1,12 @@
 import 'dart:io';
+import 'dart:typed_data';
+import 'dart:ui' as ui;
+import 'package:flutter/rendering.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:share_plus/share_plus.dart';
+import 'services.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
@@ -18,14 +26,15 @@ class _OrdersPageState extends State<OrdersPage> {
         sb.from('bookings').select('*, trips(from_city,to_city,depart_at)').order('created_at', ascending: false).limit(30),
         sb.from('shipments').select().order('created_at', ascending: false).limit(30),
         sb.from('transfers').select().order('created_at', ascending: false).limit(30),
+        sb.from('security_requests').select().order('created_at', ascending: false).limit(30),
       ]);
 
   @override
   Widget build(BuildContext context) => RefreshIndicator(
         onRefresh: () async { setState(() => f = _load()); await f; },
         child: Load<List<dynamic>>(f, (d) {
-          final b = (d[0] as List).cast<Map<String, dynamic>>(), s = (d[1] as List).cast<Map<String, dynamic>>(), t = (d[2] as List).cast<Map<String, dynamic>>();
-          if (b.isEmpty && s.isEmpty && t.isEmpty) return ListView(children: const [SizedBox(height: 120), Empty('لا توجد طلبات بعد')]);
+          final b = (d[0] as List).cast<Map<String, dynamic>>(), s = (d[1] as List).cast<Map<String, dynamic>>(), t = (d[2] as List).cast<Map<String, dynamic>>(), sc = (d[3] as List).cast<Map<String, dynamic>>();
+          if (b.isEmpty && s.isEmpty && t.isEmpty && sc.isEmpty) return ListView(children: const [SizedBox(height: 120), Empty('لا توجد طلبات بعد')]);
           return ListView(padding: const EdgeInsets.all(16), children: [
             for (final x in b)
               Card(child: ListTile(
@@ -36,9 +45,11 @@ class _OrdersPageState extends State<OrdersPage> {
                 onTap: () async { await Navigator.push(context, MaterialPageRoute(builder: (_) => BookingDetail('${x['id']}'))); setState(() => f = _load()); },
               )),
             for (final x in s)
-              Card(child: ListTile(leading: const Icon(Icons.inventory_2, color: kPri), title: Text('إرسالية ${x['tracking_no'] ?? x['ref_no'] ?? ''}'), subtitle: Text('${x['from_place'] ?? ''} ← ${x['to_place'] ?? ''}'), trailing: StatusBadge('${x['status']}'))),
+              Card(child: ListTile(leading: const Icon(Icons.inventory_2, color: kPri), title: Text('إرسالية ${x['tracking_no'] ?? x['ref_no'] ?? ''}'), subtitle: Text('${x['from_place'] ?? ''} ← ${x['to_place'] ?? ''}'), trailing: StatusBadge('${x['status']}'), onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ShipDetail('${x['id']}'))))),
             for (final x in t)
-              Card(child: ListTile(leading: const Icon(Icons.account_balance_wallet, color: kPri), title: Text('تحويل ${money(x['amount'] as num?)}'), subtitle: Text('${x['country'] ?? ''}'), trailing: StatusBadge('${x['status']}'))),
+              Card(child: ListTile(leading: const Icon(Icons.account_balance_wallet, color: kPri), title: Text('تحويل ${money(x['amount'] as num?)}'), subtitle: Text('${x['country'] ?? ''}'), trailing: StatusBadge('${x['status']}'), onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => TransferDetail('${x['id']}'))))),
+            for (final x in sc)
+              Card(child: ListTile(leading: const Icon(Icons.shield, color: kPri), title: Text('${x['service'] ?? 'طلب أمني'}'), subtitle: Text('${x['ref_no'] ?? ''}'), trailing: StatusBadge('${x['status']}'), onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => SecurityDetail('${x['id']}'))))),
           ]);
         }),
       );
@@ -54,6 +65,34 @@ class BookingDetail extends StatefulWidget {
 class _BookingDetailState extends State<BookingDetail> {
   late Future<Map<String, dynamic>> f = _load();
   bool busy = false;
+  final tkey = GlobalKey();
+
+  Future<Uint8List> _png() async {
+    final bd = tkey.currentContext!.findRenderObject() as RenderRepaintBoundary;
+    final img = await bd.toImage(pixelRatio: 3);
+    return (await img.toByteData(format: ui.ImageByteFormat.png))!.buffer.asUint8List();
+  }
+
+  Future<void> saveTicket(String ref, bool asPdf) async {
+    try {
+      final png = await _png();
+      final dir = await getTemporaryDirectory();
+      late File f;
+      if (asPdf) {
+        final doc = pw.Document();
+        final im = pw.MemoryImage(png);
+        final dec = await decodeImageFromList(png);
+        final w = 420.0, h = w * dec.height / dec.width;
+        doc.addPage(pw.Page(pageFormat: PdfPageFormat(w, h, marginAll: 0), build: (_) => pw.Image(im, fit: pw.BoxFit.fill)));
+        f = File('${dir.path}/ticket-$ref.pdf')..writeAsBytesSync(await doc.save());
+      } else {
+        f = File('${dir.path}/ticket-$ref.png')..writeAsBytesSync(png);
+      }
+      await Share.shareXFiles([XFile(f.path)], text: 'تذكرة $ref');
+    } catch (e) {
+      if (mounted) toast(context, 'تعذّر حفظ التذكرة');
+    }
+  }
 
   Future<Map<String, dynamic>> _load() async {
     final b = await sb.from('bookings').select('*, trips(*)').eq('id', widget.id).single();
@@ -110,7 +149,7 @@ class _BookingDetailState extends State<BookingDetail> {
                 subtitle: Text('${b['handler_phone'] ?? ''}'),
                 trailing: b['handler_phone'] != null ? IconButton(icon: const Icon(Icons.call), onPressed: () => launchUrl(Uri.parse('tel:${b['handler_phone']}'))) : null,
               )),
-            Card(
+            RepaintBoundary(key: tkey, child: Card(
               child: Padding(padding: const EdgeInsets.all(16), child: Column(children: [
                 Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text('تذكرة سفر', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)), StatusBadge(st)]),
                 const SizedBox(height: 8),
@@ -121,7 +160,10 @@ class _BookingDetailState extends State<BookingDetail> {
                 if (ok) QrImageView(data: 'MAHATTA|${b['ref_no']}', size: 190) else Padding(padding: const EdgeInsets.all(24), child: Text(st == 'cancelled' ? 'التذكرة ملغاة' : 'يظهر الباركود بعد أن يُصدر المشرف التذكرة', style: const TextStyle(color: Colors.black54))),
                 Text('${b['ref_no']}', textDirection: TextDirection.ltr, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: kPri, letterSpacing: 2)),
               ])),
-            ),
+            )),
+            if (ok) Padding(padding: const EdgeInsets.only(top: 10), child: Row(children: [Expanded(child: FilledButton(onPressed: () => saveTicket('${b['ref_no']}', false), child: const Text('حفظ كصورة'))), const SizedBox(width: 10), Expanded(child: OutlinedButton(onPressed: () => saveTicket('${b['ref_no']}', true), child: const Text('حفظ PDF')))])),
+            if (t['lat'] != null && t['lng'] != null && st != 'pending' && st != 'cancelled') mapCard('أين الرحلة الآن', (t['lat'] as num).toDouble(), (t['lng'] as num).toDouble(), t['loc_updated_at'] as String?),
+            if (ok && b['agency_id'] != null) RateCard('${b['agency_id']}'),
             if (st == 'accepted') ...[
               const SizedBox(height: 8),
               Card(color: kAcc.withOpacity(.12), child: Padding(padding: const EdgeInsets.all(14), child: Text('قبل المكتب طلبك. المبلغ المطلوب تحويله: ${money(b['total'] as num?)}', style: const TextStyle(fontWeight: FontWeight.bold)))),
