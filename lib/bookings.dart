@@ -59,8 +59,8 @@ class _BookingDetailState extends State<BookingDetail> {
     final b = await sb.from('bookings').select('*, trips(*)').eq('id', widget.id).single();
     List pm = [];
     if (b['status'] == 'accepted') {
-      final q = sb.from('payment_methods').select().eq('active', true).order('sort');
-      pm = b['agency_id'] != null ? await q.eq('agency_id', b['agency_id']) : await q.isFilter('agency_id', null);
+      final base = sb.from('payment_methods').select().eq('active', true);
+      pm = b['agency_id'] != null ? await base.eq('agency_id', b['agency_id']).order('sort') : await base.isFilter('agency_id', null).order('sort');
     }
     return {'b': b, 'pm': pm};
   }
