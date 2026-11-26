@@ -50,7 +50,7 @@ Widget handlerCard(BuildContext ctx, Map<String, dynamic> r) {
 }
 
 /// المخطط الزمني
-Widget timeline(List<String> keys, String status, {Map<String, String>? times}) {
+Widget timeline(List<String> keys, String status, {Map<String, String>? times, Map<String, String>? labels}) {
   final idx = keys.indexOf(status);
   final done = status == keys.last;
   return Card(
@@ -62,7 +62,7 @@ Widget timeline(List<String> keys, String status, {Map<String, String>? times}) 
             Icon(done || i < idx ? Icons.check_circle : i == idx ? Icons.radio_button_checked : Icons.radio_button_unchecked, color: done || i < idx ? Colors.green : i == idx ? kAcc : Colors.grey),
             const SizedBox(width: 10),
             Expanded(child: Padding(padding: const EdgeInsets.symmetric(vertical: 8), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text((statusMap[keys[i]]?[0] ?? keys[i]) as String, style: TextStyle(fontWeight: i == idx ? FontWeight.bold : FontWeight.normal)),
+              Text(labels?[keys[i]] ?? (statusMap[keys[i]]?[0] ?? keys[i]) as String, style: TextStyle(fontWeight: i == idx ? FontWeight.bold : FontWeight.normal)),
               if (times?[keys[i]] != null) Text(dt(times![keys[i]]), style: const TextStyle(fontSize: 12, color: Colors.black54)),
             ]))),
           ]),

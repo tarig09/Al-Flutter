@@ -55,7 +55,7 @@ class TripsPage extends StatelessWidget {
   Widget build(BuildContext context) => Scaffold(
         appBar: AppBar(title: Text('${agency['name']}')),
         body: Load<List<dynamic>>(
-          sb.from('trips').select().eq('agency_id', agency['id']).eq('active', true).gt('depart_at', DateTime.now().toUtc().toIso8601String()).order('depart_at'),
+          sb.from('trips').select('*, buses(name,plate_no)').eq('agency_id', agency['id']).eq('active', true).gt('depart_at', DateTime.now().toUtc().toIso8601String()).order('depart_at'),
           (d) {
             if (d.isEmpty) return const Empty('لا توجد رحلات متاحة حالياً');
             return ListView(padding: const EdgeInsets.all(16), children: [
@@ -64,7 +64,7 @@ class TripsPage extends StatelessWidget {
                 Card(
                   child: ListTile(
                     title: Text('${t['from_city']}  ←  ${t['to_city']}', style: const TextStyle(fontWeight: FontWeight.bold)),
-                    subtitle: Text('${dt('${t['depart_at']}')}\n${t['bus_type'] ?? ''}'),
+                    subtitle: Text('${dt('${t['depart_at']}')}\n${t['buses'] != null ? '${t['buses']['name']}${t['buses']['plate_no'] != null ? ' • ${t['buses']['plate_no']}' : ''}' : (t['bus_type'] ?? '')}'),
                     isThreeLine: true,
                     trailing: Text(money(t['price'] as num?), style: const TextStyle(color: kPri, fontWeight: FontWeight.bold)),
                     onTap: agency['is_open'] == true ? () => Navigator.push(context, MaterialPageRoute(builder: (_) => SeatsPage(t))) : null,

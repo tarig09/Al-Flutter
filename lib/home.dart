@@ -37,7 +37,10 @@ class _HomeShellState extends State<HomeShell> {
   Widget build(BuildContext context) {
     final pages = [const HomePage(), const OrdersPage(), NotificationsPage(onRead: poll), const AccountPage()];
     return Scaffold(
-      appBar: AppBar(title: Text(['المحطة', 'طلباتي', 'الإشعارات', 'حسابي'][tab])),
+      appBar: AppBar(
+        leading: Padding(padding: const EdgeInsets.all(7), child: ClipOval(child: Image.asset('assets/logo.png'))),
+        title: Text(['المحطة', 'طلباتي', 'الإشعارات', 'حسابي'][tab]),
+      ),
       body: pages[tab],
       bottomNavigationBar: NavigationBar(
         selectedIndex: tab,

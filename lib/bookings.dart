@@ -95,7 +95,7 @@ class _BookingDetailState extends State<BookingDetail> {
   }
 
   Future<Map<String, dynamic>> _load() async {
-    final b = await sb.from('bookings').select('*, trips(*)').eq('id', widget.id).single();
+    final b = await sb.from('bookings').select('*, trips(*, buses(name,plate_no,bus_type,driver_name,driver_phone))').eq('id', widget.id).single();
     List pm = [];
     if (b['status'] == 'accepted') {
       final base = sb.from('payment_methods').select().eq('active', true);
@@ -162,6 +162,11 @@ class _BookingDetailState extends State<BookingDetail> {
               ])),
             )),
             if (ok) Padding(padding: const EdgeInsets.only(top: 10), child: Row(children: [Expanded(child: FilledButton(onPressed: () => saveTicket('${b['ref_no']}', false), child: const Text('حفظ كصورة'))), const SizedBox(width: 10), Expanded(child: OutlinedButton(onPressed: () => saveTicket('${b['ref_no']}', true), child: const Text('حفظ PDF')))])),
+            if (st != 'pending' && st != 'cancelled') ...[
+              if (t['buses'] != null) Card(child: ListTile(leading: const Icon(Icons.directions_bus, color: kPri), title: Text('الحافلة: ${t['buses']['name']}'), subtitle: Text([if (t['buses']['plate_no'] != null) 'اللوحة ${t['buses']['plate_no']}', if (t['buses']['driver_name'] != null) 'السائق ${t['buses']['driver_name']}'].join('  •  ')))),
+              head('حالة الرحلة'),
+              timeline(const ['scheduled', 'departed', 'on_road', 'near', 'arrived'], '${t['travel_status'] ?? 'scheduled'}', times: t['status_updated_at'] != null ? {'${t['travel_status']}': '${t['status_updated_at']}'} : null, labels: const {'scheduled': 'لم تتحرك بعد', 'departed': 'تحركت الرحلة', 'on_road': 'في الطريق', 'near': 'قربت على الوصول', 'arrived': 'وصلت بسلامة'}),
+            ],
             if (t['lat'] != null && t['lng'] != null && st != 'pending' && st != 'cancelled') mapCard('أين الرحلة الآن', (t['lat'] as num).toDouble(), (t['lng'] as num).toDouble(), t['loc_updated_at'] as String?),
             if (ok && b['agency_id'] != null) RateCard('${b['agency_id']}'),
             if (st == 'accepted') ...[
