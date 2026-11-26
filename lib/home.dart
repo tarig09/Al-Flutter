@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'bookings.dart';
 import 'sections.dart';
+import 'extras.dart';
 import 'ui.dart';
 import 'misc.dart';
 
@@ -66,6 +67,7 @@ class HomePage extends StatelessWidget {
                 Text('${b['title'] ?? ''}', style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold)),
                 if (b['subtitle'] != null) Text('${b['subtitle']}', style: const TextStyle(color: Colors.white70)),
               ])),
+            Card(child: ListTile(leading: const Icon(Icons.currency_exchange, color: kPri), title: const Text('محوّل العملات (مصري ⇄ سوداني)'), trailing: const Icon(Icons.chevron_left), onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ConverterPage())))),
             GridView.count(shrinkWrap: true, physics: const NeverScrollableScrollPhysics(), crossAxisCount: 2, mainAxisSpacing: 12, crossAxisSpacing: 12, childAspectRatio: 1.25, children: [
               for (final o in offices)
                 InkWell(
@@ -81,6 +83,7 @@ class HomePage extends StatelessWidget {
                   ),
                 ),
             ]),
+            const SocialBar(),
           ]);
         },
       );

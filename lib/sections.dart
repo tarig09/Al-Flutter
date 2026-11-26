@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'bookings.dart';
+import 'extras.dart';
 import 'services.dart';
 import 'ui.dart';
 
@@ -300,7 +301,7 @@ List<List<dynamic>> actionsFor(BuildContext c, String slug, Target t, {Map<Strin
           ['تسجيل إرسالية جديدة', Icons.inventory_2, () => Navigator.push(c, MaterialPageRoute(builder: (_) => ShipNew(t)))],
           ['تتبع إرسالية', Icons.local_shipping, () => Navigator.push(c, MaterialPageRoute(builder: (_) => const ShipTrack()))],
         ],
-      'transfers' => [['تحويل جديد', Icons.account_balance_wallet, () => Navigator.push(c, MaterialPageRoute(builder: (_) => TransferNew(t)))]],
+      'transfers' => [['محوّل العملات (مصري ⇄ سوداني)', Icons.currency_exchange, () => Navigator.push(c, MaterialPageRoute(builder: (_) => const ConverterPage()))], ['تحويل جديد', Icons.account_balance_wallet, () => Navigator.push(c, MaterialPageRoute(builder: (_) => TransferNew(t)))]],
       'security' => [['تقديم طلب موافقة', Icons.shield, () => Navigator.push(c, MaterialPageRoute(builder: (_) => SecurityNew(t)))]],
       'realestate' => [['تصفح العقارات', Icons.apartment, () => Navigator.push(c, MaterialPageRoute(builder: (_) => PropsPage(t.agencyId)))]],
       _ => <List<dynamic>>[],

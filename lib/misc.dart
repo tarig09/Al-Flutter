@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'extras.dart';
 import 'ui.dart';
 
 class NotificationsPage extends StatefulWidget {
@@ -71,5 +72,6 @@ class _AccountPageState extends State<AccountPage> {
         }, child: const Text('حفظ')),
         const SizedBox(height: 8),
         OutlinedButton(onPressed: () => sb.auth.signOut(), child: const Text('تسجيل الخروج')),
+        const SocialBar(),
       ]);
 }
