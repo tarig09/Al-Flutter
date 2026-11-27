@@ -27,14 +27,15 @@ class _OrdersPageState extends State<OrdersPage> {
         sb.from('shipments').select().order('created_at', ascending: false).limit(30),
         sb.from('transfers').select().order('created_at', ascending: false).limit(30),
         sb.from('security_requests').select().order('created_at', ascending: false).limit(30),
+        sb.from('fx_requests').select().order('created_at', ascending: false).limit(30),
       ]);
 
   @override
   Widget build(BuildContext context) => RefreshIndicator(
         onRefresh: () async { setState(() => f = _load()); await f; },
         child: Load<List<dynamic>>(f, (d) {
-          final b = (d[0] as List).cast<Map<String, dynamic>>(), s = (d[1] as List).cast<Map<String, dynamic>>(), t = (d[2] as List).cast<Map<String, dynamic>>(), sc = (d[3] as List).cast<Map<String, dynamic>>();
-          if (b.isEmpty && s.isEmpty && t.isEmpty && sc.isEmpty) return ListView(children: const [SizedBox(height: 120), Empty('لا توجد طلبات بعد')]);
+          final b = (d[0] as List).cast<Map<String, dynamic>>(), s = (d[1] as List).cast<Map<String, dynamic>>(), t = (d[2] as List).cast<Map<String, dynamic>>(), sc = (d[3] as List).cast<Map<String, dynamic>>(), fx = (d[4] as List).cast<Map<String, dynamic>>();
+          if (b.isEmpty && s.isEmpty && t.isEmpty && sc.isEmpty && fx.isEmpty) return ListView(children: const [SizedBox(height: 120), Empty('لا توجد طلبات بعد')]);
           return ListView(padding: const EdgeInsets.all(16), children: [
             for (final x in b)
               Card(child: ListTile(
@@ -48,6 +49,8 @@ class _OrdersPageState extends State<OrdersPage> {
               Card(child: ListTile(leading: const Icon(Icons.inventory_2, color: kPri), title: Text('إرسالية ${x['tracking_no'] ?? x['ref_no'] ?? ''}'), subtitle: Text('${x['from_place'] ?? ''} ← ${x['to_place'] ?? ''}'), trailing: StatusBadge('${x['status']}'), onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ShipDetail('${x['id']}'))))),
             for (final x in t)
               Card(child: ListTile(leading: const Icon(Icons.account_balance_wallet, color: kPri), title: Text('تحويل ${money(x['amount'] as num?)}'), subtitle: Text('${x['country'] ?? ''}'), trailing: StatusBadge('${x['status']}'), onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => TransferDetail('${x['id']}'))))),
+            for (final x in fx)
+              Card(child: ListTile(leading: const Icon(Icons.currency_exchange, color: kPri), title: Text('تبديل ${x['ref_no']}'), subtitle: Text('${money(x['amount'] as num?).replaceAll(' ج.س', '')} ${x['direction'] == 'egp_sdg' ? 'مصري ← سوداني' : 'سوداني ← مصري'}'), trailing: StatusBadge('${x['status']}', label: x['status'] == 'pending' ? 'قيد المراجعة' : null))),
             for (final x in sc)
               Card(child: ListTile(leading: const Icon(Icons.shield, color: kPri), title: Text('${x['service'] ?? 'طلب أمني'}'), subtitle: Text('${x['ref_no'] ?? ''}'), trailing: StatusBadge('${x['status']}'), onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => SecurityDetail('${x['id']}'))))),
           ]);
@@ -167,8 +170,7 @@ class _BookingDetailState extends State<BookingDetail> {
               head('حالة الرحلة'),
               timeline(const ['scheduled', 'departed', 'on_road', 'near', 'arrived'], '${t['travel_status'] ?? 'scheduled'}', times: t['status_updated_at'] != null ? {'${t['travel_status']}': '${t['status_updated_at']}'} : null, labels: const {'scheduled': 'لم تتحرك بعد', 'departed': 'تحركت الرحلة', 'on_road': 'في الطريق', 'near': 'قربت على الوصول', 'arrived': 'وصلت بسلامة'}),
             ],
-            if (t['lat'] != null && t['lng'] != null && st != 'pending' && st != 'cancelled') mapCard('أين الرحلة الآن', (t['lat'] as num).toDouble(), (t['lng'] as num).toDouble(), t['loc_updated_at'] as String?),
-            if (ok && b['agency_id'] != null) RateCard('${b['agency_id']}'),
+            if (ok && b['agency_id'] != null && t['travel_status'] == 'arrived') RateCard('booking', '${b['id']}'),
             if (st == 'accepted') ...[
               const SizedBox(height: 8),
               Card(color: kAcc.withOpacity(.12), child: Padding(padding: const EdgeInsets.all(14), child: Text('قبل المكتب طلبك. المبلغ المطلوب تحويله: ${money(b['total'] as num?)}', style: const TextStyle(fontWeight: FontWeight.bold)))),

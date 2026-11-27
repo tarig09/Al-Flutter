@@ -33,6 +33,9 @@ String errMsg(Object e) {
     'bad_seats': 'اختر من 1 إلى 6 مقاعد.',
     'agency_closed': 'المكتب مغلق حالياً.',
     'bad_transition': 'هذا التغيير غير مسموح في الحالة الحالية.',
+    'already_rated': 'سبق تقييم هذا الطلب.',
+    'not_eligible': 'لا يمكن التقييم قبل اكتمال الخدمة.',
+    'no_agency': 'هذا الطلب غير مرتبط بمكتب.',
     'not_authenticated': 'سجّل الدخول أولاً.',
   };
   for (final k in map.keys) {
@@ -45,10 +48,11 @@ void toast(BuildContext c, String m) => ScaffoldMessenger.of(c).showSnackBar(Sna
 
 class StatusBadge extends StatelessWidget {
   final String status;
-  const StatusBadge(this.status, {super.key});
+  final String? label;
+  const StatusBadge(this.status, {super.key, this.label});
   @override
   Widget build(BuildContext context) {
-    final s = statusMap[status] ?? [status, Colors.grey];
+    final s = [label ?? (statusMap[status]?[0] ?? status), statusMap[status]?[1] ?? Colors.grey];
     final col = s[1] as Color;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),

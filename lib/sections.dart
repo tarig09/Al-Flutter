@@ -330,6 +330,7 @@ class AgencyPage extends StatelessWidget {
         }),
         for (final a in acts) Padding(padding: const EdgeInsets.only(top: 10), child: FilledButton.icon(onPressed: open ? a[2] as VoidCallback : null, icon: Icon(a[1] as IconData), label: Text(a[0] as String))),
         if ('${agency['phone'] ?? ''}'.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 14), child: OutlinedButton.icon(onPressed: () => launchUrl(Uri.parse('tel:${agency['phone']}')), icon: const Icon(Icons.call), label: Text('${agency['phone']}'))),
+        if (agency['lat'] != null && agency['lng'] != null) mapCard('موقع المكتب${'${agency['address'] ?? ''}'.isNotEmpty ? ' — ${agency['address']}' : ''}', (agency['lat'] as num).toDouble(), (agency['lng'] as num).toDouble(), null),
       ]),
     );
   }

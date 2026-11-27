@@ -62,7 +62,9 @@ class HomePage extends StatelessWidget {
   Widget build(BuildContext context) => Load<List<dynamic>>(
         Future.wait([sb.from('offices').select().eq('active', true).order('sort'), sb.from('banners').select().eq('active', true).order('sort')]),
         (d) {
-          final offices = (d[0] as List).cast<Map<String, dynamic>>(), banners = (d[1] as List).cast<Map<String, dynamic>>();
+          const order = ['travel', 'realestate', 'parcels', 'transfers', 'security'];
+          int rank(Map<String, dynamic> o) { final i = order.indexOf('${o['slug']}'); return i < 0 ? 99 : i; }
+          final offices = (d[0] as List).cast<Map<String, dynamic>>()..sort((a, b) => rank(a).compareTo(rank(b))), banners = (d[1] as List).cast<Map<String, dynamic>>();
           if (offices.isEmpty && banners.isEmpty) return const Empty('لا توجد أقسام حالياً');
           return ListView(padding: const EdgeInsets.all(16), children: [
             for (final b in banners)
@@ -70,7 +72,6 @@ class HomePage extends StatelessWidget {
                 Text('${b['title'] ?? ''}', style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold)),
                 if (b['subtitle'] != null) Text('${b['subtitle']}', style: const TextStyle(color: Colors.white70)),
               ])),
-            Card(child: ListTile(leading: const Icon(Icons.currency_exchange, color: kPri), title: const Text('محوّل العملات (مصري ⇄ سوداني)'), trailing: const Icon(Icons.chevron_left), onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ConverterPage())))),
             GridView.count(shrinkWrap: true, physics: const NeverScrollableScrollPhysics(), crossAxisCount: 2, mainAxisSpacing: 12, crossAxisSpacing: 12, childAspectRatio: 1.25, children: [
               for (final o in offices)
                 InkWell(

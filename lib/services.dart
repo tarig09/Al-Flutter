@@ -82,7 +82,7 @@ Widget mapCard(String title, double lat, double lng, String? when) {
         SizedBox(
           height: 220,
           child: FlutterMap(
-            options: MapOptions(initialCenter: p, initialZoom: 11),
+            options: MapOptions(initialCenter: p, initialZoom: 11, onTap: (_, __) => launchUrl(Uri.parse('https://www.openstreetmap.org/?mlat=$lat&mlon=$lng#map=15/$lat/$lng'), mode: LaunchMode.externalApplication)),
             children: [
               TileLayer(urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', userAgentPackageName: 'com.almahatta.al_mahatta'),
               MarkerLayer(markers: [Marker(point: p, width: 44, height: 44, child: const Icon(Icons.location_on, color: Colors.red, size: 40))]),
@@ -99,43 +99,51 @@ Widget mapCard(String title, double lat, double lng, String? when) {
   ]);
 }
 
-/// تقييم المكتب
+/// تقييم مستقل لكل طلب ناجح: يظهر مرة واحدة فقط ثم يختفي
 class RateCard extends StatefulWidget {
-  final String agencyId;
-  const RateCard(this.agencyId, {super.key});
+  final String kind, id;
+  const RateCard(this.kind, this.id, {super.key});
   @override
   State<RateCard> createState() => _RateCardState();
 }
 
 class _RateCardState extends State<RateCard> {
   int stars = 0;
+  bool? rated;
+  bool busy = false;
   final c = TextEditingController();
   @override
   void initState() {
     super.initState();
-    sb.from('agency_ratings').select('stars').eq('agency_id', widget.agencyId).eq('user_id', sb.auth.currentUser!.id).maybeSingle().then((r) {
-      if (r != null && mounted) setState(() => stars = (r['stars'] as num).toInt());
+    sb.from('agency_ratings').select('id').eq('user_id', sb.auth.currentUser!.id).eq('ref_kind', widget.kind).eq('ref_id', widget.id).maybeSingle().then((r) {
+      if (mounted) setState(() => rated = r != null);
     });
   }
 
   @override
-  Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        head('قيّم المكتب'),
-        Card(child: Padding(padding: const EdgeInsets.all(12), child: Column(children: [
-          Row(mainAxisAlignment: MainAxisAlignment.center, children: [for (var i = 1; i <= 5; i++) IconButton(onPressed: () => setState(() => stars = i), icon: Icon(i <= stars ? Icons.star : Icons.star_border, color: kAcc, size: 34))]),
-          TextField(controller: c, decoration: const InputDecoration(labelText: 'تعليق (اختياري)')),
-          const SizedBox(height: 8),
-          FilledButton(
-            onPressed: stars == 0 ? null : () async {
-              try {
-                await sb.rpc('rate_agency', params: {'p_agency': widget.agencyId, 'p_stars': stars, 'p_comment': c.text.trim().isEmpty ? null : c.text.trim()});
-                if (mounted) toast(context, 'شكراً لتقييمك');
-              } catch (e) { if (mounted) toast(context, errMsg(e)); }
-            },
-            child: const Text('إرسال التقييم'),
-          ),
-        ]))),
-      ]);
+  Widget build(BuildContext context) {
+    if (rated != false) return const SizedBox();
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      head('قيّم المكتب'),
+      Card(child: Padding(padding: const EdgeInsets.all(12), child: Column(children: [
+        Row(mainAxisAlignment: MainAxisAlignment.center, children: [for (var i = 1; i <= 5; i++) IconButton(onPressed: () => setState(() => stars = i), icon: Icon(i <= stars ? Icons.star : Icons.star_border, color: kAcc, size: 34))]),
+        TextField(controller: c, decoration: const InputDecoration(labelText: 'تعليق (اختياري)')),
+        const SizedBox(height: 8),
+        FilledButton(
+          onPressed: stars == 0 || busy ? null : () async {
+            setState(() => busy = true);
+            try {
+              await sb.rpc('rate_request', params: {'p_kind': widget.kind, 'p_id': widget.id, 'p_stars': stars, 'p_comment': c.text.trim().isEmpty ? null : c.text.trim()});
+              if (mounted) { toast(context, 'شكراً لتقييمك'); setState(() => rated = true); }
+            } catch (e) {
+              if (mounted) { toast(context, errMsg(e)); setState(() => busy = false); }
+            }
+          },
+          child: const Text('إرسال التقييم'),
+        ),
+      ]))),
+    ]);
+  }
 }
 
 Widget agencyHeader(Map<String, dynamic>? a) => a == null ? const SizedBox() : Card(child: ListTile(leading: a['logo_url'] != null ? CircleAvatar(backgroundImage: NetworkImage('${a['logo_url']}')) : const CircleAvatar(child: Icon(Icons.business)), title: Text('${a['name']}', style: const TextStyle(fontWeight: FontWeight.bold)), subtitle: const Text('المكتب المسؤول عن طلبك')));
@@ -183,6 +191,29 @@ class _ShipNewState extends State<ShipNew> {
     if ([sn, sp, sf, rn, rp, rt].any((c) => c.text.trim().isEmpty) || w <= 0) return toast(context, 'أكمل جميع الحقول المطلوبة');
     setState(() => busy = true);
     try {
+      // السعر الحالي من لوحة الإدارة وقت التسجيل
+      final fresh = widget.target.agencyId != null
+          ? await sb.from('agencies').select('ship_base,ship_per_kg').eq('id', widget.target.agencyId!).single()
+          : await sb.from('offices').select('ship_base,ship_per_kg').eq('slug', 'parcels').single();
+      final b = fresh['ship_base'] as num?;
+      final price = b == null ? null : b + ((fresh['ship_per_kg'] as num?) ?? 0) * w;
+      if (!mounted) return;
+      final ok = await showDialog<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (c) => AlertDialog(
+          title: const Text('تأكيد سعر الإرسالية'),
+          content: Column(mainAxisSize: MainAxisSize.min, children: [
+            Kv('من', sf.text.trim()), Kv('إلى', rt.text.trim()), Kv('الوزن', '${wk.text} كجم'),
+            const Divider(),
+            price == null
+                ? const Text('لم يحدد سعر الإرسالية بعد. سيحدد المكتب التكلفة بعد استلام طلبك، هل تريد المتابعة؟', textAlign: TextAlign.center)
+                : Column(children: [const Text('تكلفة الإرسالية', style: TextStyle(color: Colors.black54)), Text(money(price), style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: kPri))]),
+          ]),
+          actions: [TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('إلغاء')), FilledButton(style: FilledButton.styleFrom(minimumSize: const Size(110, 44)), onPressed: () => Navigator.pop(c, true), child: const Text('موافق وتسجيل'))],
+        ),
+      );
+      if (ok != true) { if (mounted) setState(() => busy = false); return; }
       final r = await sb.from('shipments').insert({'sender_name': sn.text.trim(), 'sender_phone': sp.text.trim(), 'from_place': sf.text.trim(), 'receiver_name': rn.text.trim(), 'receiver_phone': rp.text.trim(), 'to_place': rt.text.trim(), 'weight_kg': w, 'description': ds.text.trim(), 'agency_id': widget.target.agencyId}).select().single();
       if (!mounted) return;
       Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => ShipDetail('${r['id']}')));
@@ -202,7 +233,7 @@ class _ShipNewState extends State<ShipNew> {
           head('الإرسالية'), tf('الوزن (كجم)', wk, t: const TextInputType.numberWithOptions(decimal: true), on: (_) => setState(() {})), tf('الوصف', ds),
           Card(child: Padding(padding: const EdgeInsets.all(12), child: base != null ? Kv('التكلفة التقديرية', money(cost)) : const Text('يحدد المكتب التكلفة بعد استلام طلبك.'))),
           const SizedBox(height: 10),
-          FilledButton(onPressed: busy ? null : go, child: const Text('تسجيل الإرسالية')),
+          FilledButton(onPressed: busy ? null : go, child: const Text('متابعة ومراجعة السعر')),
         ]),
       );
 }
@@ -284,7 +315,7 @@ class ShipDetail extends StatelessWidget {
               head('حالة الإرسالية'),
               s['status'] == 'cancelled' ? const StatusBadge('cancelled') : timeline(shipFlow, '${s['status']}', times: hist),
               if (s['lat'] != null && s['lng'] != null) mapCard('أين إرساليتك الآن', (s['lat'] as num).toDouble(), (s['lng'] as num).toDouble(), s['updated_at'] as String?) else const Padding(padding: EdgeInsets.all(8), child: Text('سيظهر موقع الإرسالية على الخريطة عندما يحدّثه المكتب.')),
-              if (s['status'] == 'delivered' && s['agency_id'] != null) RateCard('${s['agency_id']}'),
+              if (s['status'] == 'delivered' && s['agency_id'] != null) RateCard('shipment', '${s['id']}'),
             ]),
           );
         }),
@@ -410,7 +441,7 @@ class _TransferDetailState extends State<TransferDetail> {
             if (['pending', 'accepted', 'payment_review'].contains(st)) Padding(padding: const EdgeInsets.only(top: 12), child: OutlinedButton(onPressed: () async {
               try { await sb.rpc('cancel_transfer', params: {'p_transfer': t['id']}); reload(); } catch (e) { toast(context, errMsg(e)); }
             }, child: const Text('إلغاء الطلب'))),
-            if (st == 'completed' && a != null) RateCard('${a['id']}'),
+            if (st == 'completed' && a != null) RateCard('transfer', '${t['id']}'),
           ]);
         }),
       );
@@ -486,7 +517,7 @@ class SecurityDetail extends StatelessWidget {
                 Card(child: Padding(padding: const EdgeInsets.all(14), child: Column(children: [Kv('الخدمة', '${r['service']}'), Kv('مقدم الطلب', '${r['full_name']}'), Kv('المستندات', '${(r['docs'] as List).length} ملف'), Kv('التاريخ', dt('${r['created_at']}'))]))),
                 head('متابعة الطلب'),
                 r['status'] == 'rejected' ? const StatusBadge('rejected') : timeline(const ['pending', 'processing', 'approved'], '${r['status']}'),
-                if (r['status'] == 'approved' && a.data != null) RateCard('${a.data!['id']}'),
+                if (r['status'] == 'approved' && a.data != null) RateCard('security', '${r['id']}'),
               ]),
             )),
       );
