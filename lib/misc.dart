@@ -12,7 +12,7 @@ class NotificationsPage extends StatefulWidget {
 class _NotificationsPageState extends State<NotificationsPage> {
   late Future<List<dynamic>> f = _load();
   Future<List<dynamic>> _load() async {
-    final r = await sb.from('notifications').select().order('created_at', ascending: false).limit(50);
+    final r = await sb.from('notifications').select().gte('created_at', DateTime.now().toUtc().subtract(const Duration(days: 7)).toIso8601String()).order('created_at', ascending: false).limit(50);
     if ((r as List).any((n) => n['read'] != true)) {
       await sb.rpc('mark_all_read');
       widget.onRead();

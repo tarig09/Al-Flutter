@@ -51,16 +51,30 @@ class AgencyList extends StatelessWidget {
 class TripsPage extends StatelessWidget {
   final Map<String, dynamic> agency;
   const TripsPage(this.agency, {super.key});
+
+  /// رحلات قادمة فقط، وتختفي الرحلة فور اكتمال مقاعدها
+  Future<List<Map<String, dynamic>>> _load() async {
+    final r = await sb.from('trips').select('*, buses(name,plate_no)').eq('agency_id', agency['id']).eq('active', true).gt('depart_at', DateTime.now().toUtc().toIso8601String()).order('depart_at');
+    final trips = (r as List).cast<Map<String, dynamic>>();
+    if (trips.isEmpty) return trips;
+    final seats = await sb.from('booking_seats').select('trip_id').inFilter('trip_id', trips.map((t) => t['id']).toList());
+    final taken = <String, int>{};
+    for (final s in (seats as List)) {
+      taken['${s['trip_id']}'] = (taken['${s['trip_id']}'] ?? 0) + 1;
+    }
+    return trips.where((t) => (taken['${t['id']}'] ?? 0) < (t['seats_total'] as num).toInt()).toList();
+  }
+
   @override
   Widget build(BuildContext context) => Scaffold(
         appBar: AppBar(title: Text('${agency['name']}')),
-        body: Load<List<dynamic>>(
-          sb.from('trips').select('*, buses(name,plate_no)').eq('agency_id', agency['id']).eq('active', true).gt('depart_at', DateTime.now().toUtc().toIso8601String()).order('depart_at'),
+        body: Load<List<Map<String, dynamic>>>(
+          _load(),
           (d) {
             if (d.isEmpty) return const Empty('لا توجد رحلات متاحة حالياً');
             return ListView(padding: const EdgeInsets.all(16), children: [
               if (agency['is_open'] != true) const Padding(padding: EdgeInsets.only(bottom: 10), child: Text('المكتب مغلق حالياً ولا يستقبل حجوزات.', style: TextStyle(color: Colors.red))),
-              for (final t in d.cast<Map<String, dynamic>>())
+              for (final t in d)
                 Card(
                   child: ListTile(
                     title: Text('${t['from_city']}  ←  ${t['to_city']}', style: const TextStyle(fontWeight: FontWeight.bold)),

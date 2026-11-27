@@ -19,6 +19,7 @@ class _HomeShellState extends State<HomeShell> {
   @override
   void initState() {
     super.initState();
+    sb.rpc('cleanup_expired').then((_) {}, onError: (_) {}); // تنظيف البيانات المنتهية (مرة يومياً كحد أقصى)
     poll();
     t = Timer.periodic(const Duration(seconds: 30), (_) => poll());
   }
@@ -28,7 +29,7 @@ class _HomeShellState extends State<HomeShell> {
 
   Future<void> poll() async {
     try {
-      final r = await sb.from('notifications').select('id').eq('read', false);
+      final r = await sb.from('notifications').select('id').eq('read', false).gte('created_at', DateTime.now().toUtc().subtract(const Duration(days: 7)).toIso8601String());
       if (mounted) setState(() => unread = (r as List).length);
     } catch (_) {}
   }

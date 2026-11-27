@@ -34,7 +34,8 @@ class _OrdersPageState extends State<OrdersPage> {
   Widget build(BuildContext context) => RefreshIndicator(
         onRefresh: () async { setState(() => f = _load()); await f; },
         child: Load<List<dynamic>>(f, (d) {
-          final b = (d[0] as List).cast<Map<String, dynamic>>(), s = (d[1] as List).cast<Map<String, dynamic>>(), t = (d[2] as List).cast<Map<String, dynamic>>(), sc = (d[3] as List).cast<Map<String, dynamic>>(), fx = (d[4] as List).cast<Map<String, dynamic>>();
+          final cut = DateTime.now().subtract(const Duration(days: 7));
+          final b = (d[0] as List).cast<Map<String, dynamic>>().where((x) => x['trips'] == null || DateTime.parse('${x['trips']['depart_at']}').isAfter(cut)).toList(), s = (d[1] as List).cast<Map<String, dynamic>>(), t = (d[2] as List).cast<Map<String, dynamic>>(), sc = (d[3] as List).cast<Map<String, dynamic>>(), fx = (d[4] as List).cast<Map<String, dynamic>>();
           if (b.isEmpty && s.isEmpty && t.isEmpty && sc.isEmpty && fx.isEmpty) return ListView(children: const [SizedBox(height: 120), Empty('لا توجد طلبات بعد')]);
           return ListView(padding: const EdgeInsets.all(16), children: [
             for (final x in b)
